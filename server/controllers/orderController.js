@@ -1,5 +1,6 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import { getIO } from "../socket/socket.js";
 
 // Create Order
 export const createOrder = async (req, res) => {
@@ -109,9 +110,21 @@ export const updateOrderStatus = async (req, res) => {
 
         order.status = req.body.status;
 
-        await order.save();
+await order.save();
 
-        res.json(order);
+
+const io = getIO();
+
+io.to(order._id.toString()).emit(
+    "orderStatusUpdated",
+    {
+        orderId: order._id,
+        status: order.status,
+        updatedAt: order.updatedAt
+    }
+);
+
+res.json(order);
 
     } catch (error) {
 
