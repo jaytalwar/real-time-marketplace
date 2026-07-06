@@ -49,6 +49,7 @@ export const getProducts = async (req, res) => {
 const limit = Number(req.query.limit) || 10;
 
 const skip = (page - 1) * limit;
+const sort = req.query.sort || "-createdAt";
 
         if (search) {
 
@@ -69,8 +70,7 @@ const skip = (page - 1) * limit;
 .skip(skip)
 .limit(limit)
             .populate("seller", "name email")
-            .sort({ createdAt: -1 });
-
+            .sort(sort);
             const totalProducts = await Product.countDocuments(query);
 
 
