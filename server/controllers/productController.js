@@ -36,17 +36,44 @@ export const createProduct = async (req, res) => {
 // @route GET /api/products
 // @access Public
 export const getProducts = async (req, res) => {
+
     try {
-        const products = await Product.find()
+
+        const search = req.query.search || "";
+
+        const category = req.query.category || "";
+
+        const query = {};
+
+        if (search) {
+
+            query.title = {
+                $regex: search,
+                $options: "i",
+            };
+
+        }
+
+        if (category) {
+
+            query.category = category;
+
+        }
+
+        const products = await Product.find(query)
             .populate("seller", "name email")
             .sort({ createdAt: -1 });
 
         res.json(products);
+
     } catch (error) {
+
         res.status(500).json({
             message: error.message,
         });
+
     }
+
 };
 
 // @desc Get Product By Id
