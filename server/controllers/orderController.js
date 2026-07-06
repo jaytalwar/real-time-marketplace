@@ -18,6 +18,11 @@ export const createOrder = async (req, res) => {
 
         for (const item of items) {
             const product = await Product.findById(item.product);
+            if (product.stock < item.quantity) {
+    return res.status(400).json({
+        message: `${product.title} is out of stock`
+    });
+}
 
             if (!product) {
                 return res.status(404).json({
@@ -31,6 +36,9 @@ export const createOrder = async (req, res) => {
             });
 
             total += product.price * item.quantity;
+            product.stock -= item.quantity;
+
+await product.save();
         }
 
         const order = await Order.create({
