@@ -6,6 +6,7 @@ import {
     getProductById,
     updateProduct,
     deleteProduct,
+    getMyProducts,
 } from "../controllers/productController.js";
 
 import {
@@ -23,6 +24,13 @@ router
         authorize("seller", "admin"),
         createProduct
     );
+
+router.get(
+    "/my-products",
+    protect,
+    authorize("seller", "admin"),
+    getMyProducts
+);
 
 router
     .route("/:id")

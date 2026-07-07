@@ -1,4 +1,5 @@
 import Product from "../models/Product.js";
+import redis from "../config/redis.js";
 
 // @desc Create Product
 // @route POST /api/products
@@ -112,6 +113,9 @@ export const getProductById = async (req, res) => {
 
         product.views += 1;
         await product.save();
+        
+
+await redis.flushdb();
 
         res.json(product);
     } catch (error) {
@@ -151,6 +155,25 @@ export const updateProduct = async (req, res) => {
         });
     }
 };
+export const getMyProducts = async (req, res) => {
+    try {
+
+        const products = await Product.find({
+            seller: req.user._id,
+        }).sort({
+            createdAt: -1,
+        });
+
+        res.json(products);
+
+    } catch (error) {
+
+        res.status(500).json({
+            message: error.message,
+        });
+
+    }
+};
 
 // @desc Delete Product
 // @route DELETE /api/products/:id
@@ -172,6 +195,7 @@ export const deleteProduct = async (req, res) => {
         }
 
         await product.deleteOne();
+        await redis.flushdb();
 
         res.json({
             message: "Product deleted successfully",
