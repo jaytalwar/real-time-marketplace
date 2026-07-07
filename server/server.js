@@ -8,6 +8,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import http from "http";
 import { Server } from "socket.io";
 import { initializeSocket } from "./socket/socket.js";
+import "./config/redis.js";
 
 dotenv.config();
 
