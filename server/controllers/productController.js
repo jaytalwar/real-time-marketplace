@@ -67,6 +67,15 @@ const sort = req.query.sort || "-createdAt";
 
         }
 
+        const minPrice = req.query.minPrice;
+        const maxPrice = req.query.maxPrice;
+
+        if (minPrice || maxPrice) {
+            query.price = {};
+            if (minPrice) query.price.$gte = Number(minPrice);
+            if (maxPrice) query.price.$lte = Number(maxPrice);
+        }
+
         const products = await Product.find(query)
 .skip(skip)
 .limit(limit)

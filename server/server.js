@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
 import http from "http";
 import { Server } from "socket.io";
 import { initializeSocket } from "./socket/socket.js";
@@ -57,6 +58,7 @@ io.on("connection", (socket) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/ai", aiRoutes);
 app.get("/", (req, res) => {
     res.send("Marketplace API Running");
 });

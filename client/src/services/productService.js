@@ -4,7 +4,10 @@ export const getProducts = async (
   page = 1,
   search = "",
   category = "",
-  sort = "-createdAt"
+  sort = "-createdAt",
+  limit = 12,
+  minPrice,
+  maxPrice
 ) => {
   const { data } = await api.get("/products", {
     params: {
@@ -12,6 +15,9 @@ export const getProducts = async (
       search,
       category,
       sort,
+      limit,
+      minPrice,
+      maxPrice,
     },
   });
 
