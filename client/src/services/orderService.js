@@ -1,9 +1,11 @@
 import api from "./api";
 
-export const createOrder = async (items) => {
-  const { data } = await api.post("/orders", {
-    items,
-  });
+export const createOrder = async (items, idempotencyKey) => {
+  const { data } = await api.post(
+    "/orders",
+    { items },
+    idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : undefined
+  );
 
   return data;
 };

@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 
 import { getProductById, getProducts } from "../services/productService";
 import { useCart } from "../context/CartContext";
+import socket, { joinProductRoom, leaveProductRoom } from "../socket/socket";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import StockBadge from "../components/ui/StockBadge";
@@ -47,6 +48,28 @@ export default function Product() {
       })
       .catch(() => toast.error("Product not found"))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    joinProductRoom(id);
+
+    const rejoin = () => joinProductRoom(id);
+    socket.on("connect", rejoin);
+
+    const onInventoryChanged = (data) => {
+      if (data.productId !== id) return;
+      getProductById(id)
+        .then(setProduct)
+        .catch(() => {});
+    };
+
+    socket.on("inventory:changed", onInventoryChanged);
+
+    return () => {
+      leaveProductRoom(id);
+      socket.off("connect", rejoin);
+      socket.off("inventory:changed", onInventoryChanged);
+    };
   }, [id]);
 
   if (loading) {

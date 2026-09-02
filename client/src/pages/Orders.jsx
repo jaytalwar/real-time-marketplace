@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Package, Radio } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { getMyOrders, getAllOrders, updateStatus } from "../services/orderService";
 import { useAuth } from "../context/AuthContext";
-import socket from "../socket/socket";
+import socket, { joinOrderRoom, joinSellerRoom } from "../socket/socket";
 import OrderStatusStepper from "../components/OrderStatusStepper";
 import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
@@ -17,21 +17,37 @@ export default function Orders() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const orderIdsRef = useRef([]);
+
+  const fetchOrders = async () => {
+    try {
+      const data = user.role === "buyer" ? await getMyOrders() : await getAllOrders();
+      setOrders(data);
+      orderIdsRef.current = data.map((order) => order._id);
+      data.forEach((order) => joinOrderRoom(order._id));
+      if (user.role !== "buyer") joinSellerRoom(user._id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const data = user.role === "buyer" ? await getMyOrders() : await getAllOrders();
-        setOrders(data);
-        data.forEach((order) => socket.emit("joinOrder", order._id));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    fetchOrders();
+  }, [user]);
+
+  // socket.io's own reconnection logic re-establishes the transport, but room
+  // membership doesn't survive a disconnect — without this, a dropped
+  // connection silently stops delivering order updates until a manual reload.
+  useEffect(() => {
+    const rejoin = () => {
+      orderIdsRef.current.forEach((id) => joinOrderRoom(id));
+      if (user.role !== "buyer") joinSellerRoom(user._id);
     };
 
-    fetchOrders();
+    socket.on("connect", rejoin);
+    return () => socket.off("connect", rejoin);
   }, [user]);
 
   useEffect(() => {
@@ -47,6 +63,18 @@ export default function Orders() {
     socket.on("orderStatusUpdated", handler);
     return () => socket.off("orderStatusUpdated", handler);
   }, []);
+
+  useEffect(() => {
+    if (user.role === "buyer") return;
+
+    const handler = () => {
+      toast.success("New order received", { icon: "🛒" });
+      fetchOrders();
+    };
+
+    socket.on("order:new", handler);
+    return () => socket.off("order:new", handler);
+  }, [user]);
 
   const changeStatus = async (id, status) => {
     const prev = orders;

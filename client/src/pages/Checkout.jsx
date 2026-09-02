@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Truck, Wallet, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
@@ -15,6 +15,13 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [placing, setPlacing] = useState(false);
 
+  // Stable for the lifetime of this checkout attempt, so a double-click or a
+  // retried request after a network hiccup can't create two orders — the
+  // server recognizes the repeated key and replays the first result instead.
+  // A fresh key is generated only when this page is mounted again (e.g. a
+  // genuinely new checkout after the previous one completed).
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
+
   if (items.length === 0) {
     return <Navigate to="/cart" replace />;
   }
@@ -23,7 +30,8 @@ export default function Checkout() {
     setPlacing(true);
     try {
       await createOrder(
-        items.map(({ product, quantity }) => ({ product: product._id, quantity }))
+        items.map(({ product, quantity }) => ({ product: product._id, quantity })),
+        idempotencyKeyRef.current
       );
       toast.success("Order placed successfully");
       navigate("/orders", { replace: true });

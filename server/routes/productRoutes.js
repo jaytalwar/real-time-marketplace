@@ -13,15 +13,23 @@ import {
     protect,
     authorize,
 } from "../middleware/authMiddleware.js";
+import validate from "../middleware/validate.js";
+import {
+    createProductSchema,
+    updateProductSchema,
+    listProductsSchema,
+    productIdParamSchema,
+} from "../validation/schemas.js";
 
 const router = express.Router();
 
 router
     .route("/")
-    .get(getProducts)
+    .get(validate(listProductsSchema), getProducts)
     .post(
         protect,
         authorize("seller", "admin"),
+        validate(createProductSchema),
         createProduct
     );
 
@@ -34,15 +42,17 @@ router.get(
 
 router
     .route("/:id")
-    .get(getProductById)
+    .get(validate(productIdParamSchema), getProductById)
     .put(
         protect,
         authorize("seller", "admin"),
+        validate(updateProductSchema),
         updateProduct
     )
     .delete(
         protect,
         authorize("seller", "admin"),
+        validate(productIdParamSchema),
         deleteProduct
     );
 
