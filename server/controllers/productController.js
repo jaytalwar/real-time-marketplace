@@ -1,5 +1,7 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import * as productService from "../services/productService.js";
+import * as pricingService from "../services/pricingService.js";
+import * as recommendationService from "../services/recommendationService.js";
 
 // @desc Create Product
 // @route POST /api/products
@@ -49,4 +51,26 @@ export const getMyProducts = asyncHandler(async (req, res) => {
 export const deleteProduct = asyncHandler(async (req, res) => {
     await productService.deleteProduct(req.params.id, req.user);
     res.json({ message: "Product deleted successfully" });
+});
+
+// @desc Explainable, rule-based pricing suggestion for the product's owner
+// @route GET /api/products/:id/pricing-insight
+// @access Seller (owner) / Admin
+export const getPricingInsight = asyncHandler(async (req, res) => {
+    const insight = await pricingService.getPricingInsight(req.params.id, req.user);
+    res.json(insight);
+});
+
+// @desc Related products (co-purchase + category), ranked, out-of-stock excluded
+// @route GET /api/products/:id/recommendations
+// @access Public
+export const getRecommendations = asyncHandler(async (req, res) => {
+    const limit = Number(req.query.limit) || 6;
+    const recommendations = await recommendationService.getRecommendations(req.params.id, limit);
+    res.json(
+        recommendations.map(({ product, reason }) => ({
+            ...product.toObject(),
+            recommendationReason: reason,
+        }))
+    );
 });

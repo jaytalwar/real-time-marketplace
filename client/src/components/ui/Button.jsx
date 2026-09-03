@@ -23,10 +23,17 @@ export default function Button({
   loading = false,
   disabled = false,
   children,
+  type,
   ...props
 }) {
   return (
     <Component
+      // A native <button> with no explicit type defaults to "submit", which
+      // silently submits the nearest <form> — surprising for any button that
+      // isn't the actual submit action. Buttons that ARE the submit action
+      // already pass type="submit" explicitly; everything else gets a safe
+      // default here instead of relying on every call site to remember it.
+      type={Component === "button" ? type || "button" : type}
       disabled={disabled || loading}
       className={`inline-flex items-center justify-center font-semibold transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}

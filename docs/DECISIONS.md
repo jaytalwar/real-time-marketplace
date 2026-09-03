@@ -10,6 +10,8 @@ architectural change"). Full context for each is in `docs/ARCHITECTURE.md` §12.
 | 2026-09-01 | Graph intelligence | **MongoDB-native** (`$graphLookup` + in-memory adjacency), not a dedicated graph database | Covers every relationship the spec lists at this scale, no new external account needed. Neo4j Aura remains an option later if the résumé line matters more than the engineering necessity. |
 | 2026-09-01 | Demand forecasting data | **Generate clearly-labeled synthetic seed data** (not yet implemented — banked for when the forecasting phase is built) | Real order history is too sparse for a meaningful train/val/test split today. Synthetic data must be disclosed everywhere it's used, never presented as real usage metrics. |
 | 2026-09-01 | Round 1 scope | **Correctness + real-time hardening only** — not pricing, recommendations, AI tool-calling, or analytics this round | 16 phases built shallowly in one pass would not survive interview follow-up questions. Chose to build fewer things correctly, tested, and explainable, starting with the foundation everything else depends on. |
+| 2026-09-03 | Round 2 scope | **Pricing intelligence + recommendation engine**, explicitly requested next | Both were buildable on real data with zero new infrastructure (per `docs/ARCHITECTURE.md` §12's own recommendation for "what to build next"), and both give the AI assistant real capability to wire into later, rather than adding surface area for its own sake. |
+| 2026-09-03 | Pricing signals | Real signals only (inventory level, own recent sales velocity) — **no competitor-price driver** | No real data source for competitor pricing exists; fabricating one would violate the spec's own rule against faking analytics/ML data. |
 
 ## What "Round 1" actually shipped
 
@@ -39,6 +41,26 @@ See `EXPLANATION.md` for the full narrative. Summary:
   updates), added live inventory-change events on the product page, and a
   live "new order" feed for sellers — with basic socket-level authorization
   so a client can't join another seller's private room.
+
+## What "Round 2" actually shipped
+
+- **Pricing insight** (`GET /api/products/:id/pricing-insight`, seller-owner
+  or admin only) — explainable rule-based price suggestion from real
+  inventory and sales-velocity signals, with the raw numbers behind every
+  driver included in the response. Verified live against both a
+  low-inventory test product (+8%) and an excess-inventory test product
+  (-6%), plus a 403 check against another seller's product.
+- **Recommendation engine** (`GET /api/products/:id/recommendations`,
+  public) — real candidate generation (co-purchase from `Order.items` +
+  same-category) → weighted ranking → business rules (exclude out-of-stock,
+  exclude self). Replaces the old "related products" section, which was
+  just same-category-sorted-by-views. Verified live: a cross-category test
+  product with real co-purchase history outranked a same-category
+  popularity-only product.
+- **A UI bug found by testing, not reading**: the "Apply suggested price"
+  button silently submitted the whole product-edit form (native `<button>`
+  defaults to `type="submit"` inside a `<form>`). Fixed at the shared
+  `Button` component level, not just the one call site.
 
 ## Known debt intentionally not touched this round
 

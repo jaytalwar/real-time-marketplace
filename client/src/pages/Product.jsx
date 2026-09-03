@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-import { getProductById, getProducts } from "../services/productService";
+import { getProductById, getRecommendations } from "../services/productService";
 import { useCart } from "../context/CartContext";
 import socket, { joinProductRoom, leaveProductRoom } from "../socket/socket";
 import Button from "../components/ui/Button";
@@ -41,11 +41,9 @@ export default function Product() {
     getProductById(id)
       .then((data) => {
         setProduct(data);
-        return getProducts(1, "", data.category, "-views", 6);
+        return getRecommendations(id, 8);
       })
-      .then((relatedData) => {
-        setRelated((relatedData?.products || []).filter((p) => p._id !== id));
-      })
+      .then((recommendations) => setRelated(recommendations || []))
       .catch(() => toast.error("Product not found"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -89,6 +87,12 @@ export default function Product() {
   if (!product) return null;
 
   const outOfStock = product.stock <= 0;
+  const frequentlyBoughtTogether = related.filter(
+    (p) => p.recommendationReason === "Frequently bought together"
+  );
+  const youMightAlsoLike = related.filter(
+    (p) => p.recommendationReason !== "Frequently bought together"
+  );
 
   const buyNow = () => {
     if (outOfStock) return;
@@ -212,11 +216,25 @@ export default function Product() {
         </div>
       </div>
 
-      {related.length > 0 && (
+      {frequentlyBoughtTogether.length > 0 && (
         <section className="mt-14">
-          <h2 className="mb-4 text-lg font-bold text-slate-900">Related products</h2>
+          <h2 className="mb-1 text-lg font-bold text-slate-900">Frequently bought together</h2>
+          <p className="mb-4 text-xs text-slate-400">
+            Based on what other buyers purchased alongside this product.
+          </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {related.slice(0, 6).map((p) => (
+            {frequentlyBoughtTogether.map((p) => (
+              <ProductCard key={p._id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {youMightAlsoLike.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-4 text-lg font-bold text-slate-900">You might also like</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {youMightAlsoLike.map((p) => (
               <ProductCard key={p._id} product={p} />
             ))}
           </div>

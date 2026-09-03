@@ -7,6 +7,8 @@ import {
     updateProduct,
     deleteProduct,
     getMyProducts,
+    getPricingInsight,
+    getRecommendations,
 } from "../controllers/productController.js";
 
 import {
@@ -38,6 +40,20 @@ router.get(
     protect,
     authorize("seller", "admin"),
     getMyProducts
+);
+
+router.get(
+    "/:id/pricing-insight",
+    protect,
+    authorize("seller", "admin"),
+    validate(productIdParamSchema),
+    getPricingInsight
+);
+
+router.get(
+    "/:id/recommendations",
+    validate(productIdParamSchema),
+    getRecommendations
 );
 
 router

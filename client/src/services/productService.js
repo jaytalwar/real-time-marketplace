@@ -49,3 +49,15 @@ export const getProductById = async (id) => {
 
   return data;
 };
+
+export const getPricingInsight = async (id) => {
+  const { data } = await api.get(`/products/${id}/pricing-insight`);
+  return data;
+};
+
+export const getRecommendations = async (id, limit = 6) => {
+  const { data } = await api.get(`/products/${id}/recommendations`, {
+    params: { limit },
+  });
+  return data;
+};

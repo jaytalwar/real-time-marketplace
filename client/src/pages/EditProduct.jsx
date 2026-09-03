@@ -47,6 +47,7 @@ export default function EditProduct() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <h1 className="mb-6 text-xl font-bold text-slate-900">Edit Product</h1>
       <ProductForm
+        productId={id}
         initialValues={{
           title: product.title,
           description: product.description,

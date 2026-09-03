@@ -38,10 +38,11 @@ MongoDB (Mongoose) + Redis (Upstash) + Socket.io on the backend; Claude
 - **Search & filters** (`/products`) — text search, category filter, price
   range, sort, pagination — all real query params hitting a real backend
   query, not client-side filtering of a pre-fetched list.
-- **Product detail** — image, price, stock badge, quantity selector, related
-  products (same category), and a live "ask AI about this product" panel.
-  The stock badge updates live if another buyer purchases the last few units
-  while you're looking at the page (see §5).
+- **Product detail** — image, price, stock badge, quantity selector, and a
+  live "ask AI about this product" panel. The stock badge updates live if
+  another buyer purchases the last few units while you're looking at the
+  page (see §5). Below that, two real recommendation sections — see
+  "Recommendation engine" below.
 - **Cart & checkout** — client-side cart (localStorage-backed, survives a
   refresh), checkout creates a real order against the backend. Checkout is
   "Cash on Delivery" only — there's no payment gateway integration, and the
@@ -55,6 +56,11 @@ MongoDB (Mongoose) + Redis (Upstash) + Socket.io on the backend; Claude
   Ask it something like "electronics under 2000" and it turns that into a
   real `GET /api/products` call with real filters, then shows real matching
   products inline in the chat.
+- **Recommendation engine** — on every product page, "Frequently bought
+  together" (real co-purchase counts computed from `Order.items`) and "You
+  might also like" (category + popularity, business-rule-filtered to exclude
+  out-of-stock items and the product itself). This replaced a much weaker
+  original version that only did same-category-sorted-by-views — see §4.6.
 
 ### Seller-facing
 - **Seller dashboard** — stat cards (product count, total stock, total
@@ -63,7 +69,10 @@ MongoDB (Mongoose) + Redis (Upstash) + Socket.io on the backend; Claude
   table.
 - **Add/Edit product** — full CRUD, with an "AI: generate description"
   button that calls Claude with the product's title/category and returns a
-  draft description the seller can edit before saving.
+  draft description the seller can edit before saving, and a **pricing
+  insight** panel (see §4.7) showing a suggested price with explainable
+  drivers pulled from the product's own real stock/sales data, plus a button
+  to apply it to the price field for review before saving.
 - **Order management** — sellers see and update the status of orders **that
   contain their own products only** (this was a real bug — see §4 — sellers
   used to see every order in the marketplace).
@@ -272,6 +281,89 @@ to see exactly those 2 orders and nothing else via `GET /orders/all`.
   it, or an admin. `product:<id>` rooms stay open with no auth, since product
   info is public anyway.
 
+### 4.6 Recommendation engine: candidate generation, ranking, business rules
+
+The original "related products" section on the product page was a single
+query: same category, sorted by views. That's not a recommendation engine,
+it's a filter. The replacement follows the three-stage pipeline designed in
+`docs/ARCHITECTURE.md` §8:
+
+1. **Candidate generation, two sources merged.** *Co-purchase candidates*:
+   every other product that has ever appeared in the same order as this one
+   — computed as an in-memory adjacency count over `Order.items`
+   (`Order.find({ "items.product": productId })`, then tally how often each
+   other product ID shows up across those orders). *Category candidates*:
+   other in-stock products in the same category. This is the MongoDB-native
+   "graph query without a graph database" approach chosen in
+   `docs/ARCHITECTURE.md` §10.
+2. **Ranking.** `score = coPurchaseCount * 10 + views * 0.1 + (isNewListing
+   ? 2 : 0)`. Co-purchase evidence is weighted an order of magnitude above
+   raw popularity on purpose — a product two people actually bought together
+   is stronger evidence of relevance than a product that's merely popular in
+   the same category.
+3. **Business rules.** Out-of-stock products are excluded (never recommend
+   something that can't be bought), the source product itself is excluded,
+   and the list is capped at the requested limit.
+
+Each returned item carries an honest `recommendationReason` —
+`"Frequently bought together"` if it came from real co-purchase data,
+`"You might also like"` otherwise — so the frontend never implies stronger
+evidence than actually exists. The frontend renders these as two separate
+sections rather than one mixed grid, specifically so that distinction stays
+visible to the shopper, not just in the API response.
+
+**Proof:** a test product in a *different* category from a real product was
+bundled into one order with that real product, generating a genuine
+co-purchase signal. Querying recommendations for the real product returned
+the cross-category test product ranked **above** a same-category product —
+proof the co-purchase weighting is actually driving rank, not just falling
+back to category filtering with extra steps.
+
+### 4.7 Pricing intelligence: explainable, not a black box
+
+Every driver is computed from the product's own real data — there is
+deliberately no "competitor price" signal, because there's no real data
+source for one in this system, and the spec this project follows explicitly
+rules out fabricating a data source to fill that gap.
+
+Two driver categories, each either fires or doesn't based on a clear
+threshold (a product can show 0, 1, or 2 drivers — never more, so the
+explanation never gets noisy):
+
+- **Inventory pressure**: stock at or below 5 units → suggests a modest
+  price increase ("demand may be outpacing available stock"); stock at or
+  above 50 units with zero sales in the last 14 days → suggests a modest
+  decrease ("a lower price could help move stock").
+- **Demand velocity**: units sold in the last 14 days compared against the
+  *seller's own* average across their other listings (not a marketplace-wide
+  number, which would be skewed by unrelated categories) — meaningfully
+  above average suggests a price increase; zero sales despite real view
+  traffic suggests price may be a conversion barrier.
+
+Adjustments are summed and clamped to a sane range (-10% to +15%), applied
+to the current price, and rounded to a clean number. The response includes
+the raw numbers behind every driver (`basedOn`), not just the prose, so a
+seller (or an interviewer) can verify the suggestion by hand.
+
+**Proof:** a low-stock test product correctly triggered the low-inventory
+driver (+8%, `999 → 1080`); a separate high-stock/zero-sales test product
+correctly triggered the excess-inventory driver (-6%, `499 → 469`); a
+request against another seller's product correctly returned `403`.
+
+### 4.8 A UI bug the tests caught before a real user would
+
+`PricingInsight`'s "Apply suggested price" button lives inside the same
+`<form>` as the rest of the product-edit fields. A native `<button>` with no
+explicit `type` defaults to `type="submit"` — so the button didn't just fill
+the price field for review, it silently submitted and saved the whole form.
+This was caught by testing the feature in a real browser, not by reading the
+code: clicking "Apply" navigated away with a "Product updated" toast instead
+of just updating the field. Root-caused and fixed once, in the shared
+`Button` component (default to `type="button"` unless a call site explicitly
+asks for `type="submit"`), rather than patching the one call site — the
+existing submit buttons already passed `type="submit"` explicitly, so the
+safer default couldn't silently break them.
+
 ---
 
 ## 5. The AI layer, honestly described
@@ -340,30 +432,35 @@ not hidden here):
 
 ## 7. Roadmap (explicitly not built yet — do not claim these exist)
 
-From the original 16-phase spec, deliberately deferred past this round's
-scope (see `docs/DECISIONS.md`):
+From the original 16-phase spec, still deliberately deferred (see
+`docs/DECISIONS.md`) — **pricing intelligence and the recommendation engine
+are now built** (§4.6-4.7) and no longer belong on this list:
 
-- **Pricing intelligence** — explainable rule-based pricing is architecturally
-  ready to build (real signals exist: views, order velocity, stock, time),
-  just not implemented yet.
 - **Demand forecasting** — needs either more real order history or
   deliberately-labeled synthetic seed data (decision made in favor of
   synthetic data when this phase is picked up — see `docs/DECISIONS.md`);
   not implemented.
-- **Recommendation engine** — candidate→rank→business-rules pipeline is
-  designed in `docs/ARCHITECTURE.md` §8, not implemented.
 - **AI tool-calling loop** (compare products, look up a specific order,
   graph-based "frequently bought with") — the current assistant only does
-  search-filter generation and single-product Q&A; the broader tool loop is
-  designed in `docs/ARCHITECTURE.md` §9, not implemented.
-- **Graph intelligence, analytics dashboard, observability endpoint,
-  fraud/risk signals** — all designed, none implemented.
+  search-filter generation and single-product Q&A; it does not yet call the
+  new pricing/recommendation services as tools, though both are now real
+  endpoints it could call. The broader tool loop is designed in
+  `docs/ARCHITECTURE.md` §9, not implemented.
+- **Graph intelligence beyond co-purchase** — the co-purchase adjacency used
+  by the recommendation engine (§4.6) *is* a real, if narrow, slice of the
+  graph-intelligence phase (`viewed`/`purchased`/`frequently_bought_with`
+  relationships, computed MongoDB-native per `docs/ARCHITECTURE.md` §10).
+  Broader relationships (`similar_to` via embeddings, `compatible_with`,
+  `manufactured_by`) are not implemented.
+- **Analytics dashboard, observability endpoint, fraud/risk signals** — all
+  designed, none implemented.
 
 If asked in an interview "what would you build next," the honest and
-strongest answer is: pricing intelligence and the recommendation engine,
-because both are buildable *today* on real data with no new infrastructure,
-and both would give the AI assistant genuinely new capabilities (compare,
-recommend, explain-a-price) rather than just more surface area.
+strongest answer is: wiring the AI assistant to actually call the pricing
+and recommendation services as tools (§9 in `docs/ARCHITECTURE.md`) — both
+already exist as real endpoints, so this is now the cheapest way to make the
+assistant meaningfully smarter, rather than more surface area for its own
+sake.
 
 ---
 
@@ -385,6 +482,21 @@ without a refetch.
 → Section 5's architectural argument: the model never *is* the data source
 for anything factual, it only proposes queries or reasons over data it was
 explicitly handed.
+
+**"How does your recommendation engine actually work — is it ML?"**
+→ Section 4.6. No ML, deliberately — it's a candidate-generation-then-
+ranking pipeline over real co-purchase and category data, weighted so
+genuine co-purchase evidence outranks raw popularity. Lead with the proof:
+a cross-category test product outranked a same-category one once real
+co-purchase data existed for it, which is direct evidence the ranking isn't
+secretly just category filtering.
+
+**"How do you justify the price change you're suggesting to a seller?"**
+→ Section 4.7. Every driver is named, thresholded, and shown with the raw
+numbers behind it (`basedOn` in the API response) — a seller can check the
+math themselves. No competitor-price signal exists because there's no real
+data source for one; naming that omission unprompted is stronger than
+waiting to be asked why it's missing.
 
 **"What would you do differently / what's the biggest weakness right now?"**
 → Section 6's honest list, led with the committed `.env` — it's real, it's

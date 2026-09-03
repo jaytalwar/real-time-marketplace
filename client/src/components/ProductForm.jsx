@@ -3,12 +3,13 @@ import { Sparkles, Loader2, ImageOff } from "lucide-react";
 import toast from "react-hot-toast";
 
 import Button from "./ui/Button";
+import PricingInsight from "./PricingInsight";
 import { generateDescription } from "../services/aiService";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
-export default function ProductForm({ initialValues, onSubmit, submitLabel, submitting }) {
+export default function ProductForm({ productId, initialValues, onSubmit, submitLabel, submitting }) {
   const [form, setForm] = useState(
     initialValues || {
       title: "",
@@ -155,32 +156,41 @@ export default function ProductForm({ initialValues, onSubmit, submitLabel, subm
         </Button>
       </div>
 
-      <div>
-        <p className="mb-1 text-sm font-medium text-slate-700">Preview</p>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex aspect-square w-full items-center justify-center bg-slate-100 text-slate-300">
-            {form.image ? (
-              <img
-                src={form.image}
-                alt="Preview"
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            ) : (
-              <ImageOff size={32} />
-            )}
-          </div>
-          <div className="p-3">
-            <p className="line-clamp-1 text-sm font-medium text-slate-800">
-              {form.title || "Product title"}
-            </p>
-            <p className="mt-1 text-base font-bold text-slate-900">
-              {form.price ? `₹${form.price}` : "₹0"}
-            </p>
+      <div className="space-y-4">
+        <div>
+          <p className="mb-1 text-sm font-medium text-slate-700">Preview</p>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex aspect-square w-full items-center justify-center bg-slate-100 text-slate-300">
+              {form.image ? (
+                <img
+                  src={form.image}
+                  alt="Preview"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <ImageOff size={32} />
+              )}
+            </div>
+            <div className="p-3">
+              <p className="line-clamp-1 text-sm font-medium text-slate-800">
+                {form.title || "Product title"}
+              </p>
+              <p className="mt-1 text-base font-bold text-slate-900">
+                {form.price ? `₹${form.price}` : "₹0"}
+              </p>
+            </div>
           </div>
         </div>
+
+        {productId && (
+          <PricingInsight
+            productId={productId}
+            onApply={(price) => setForm((f) => ({ ...f, price: String(price) }))}
+          />
+        )}
       </div>
     </form>
   );
