@@ -11,6 +11,8 @@ import {
     protect,
     authorize,
 } from "../middleware/authMiddleware.js";
+import validate from "../middleware/validate.js";
+import { createOrderSchema, updateOrderStatusSchema } from "../validation/schemas.js";
 
 const router = express.Router();
 
@@ -18,6 +20,7 @@ router.post(
     "/",
     protect,
     authorize("buyer"),
+    validate(createOrderSchema),
     createOrder
 );
 
@@ -39,6 +42,7 @@ router.patch(
     "/:id/status",
     protect,
     authorize("seller", "admin"),
+    validate(updateOrderStatusSchema),
     updateOrderStatus
 );
 

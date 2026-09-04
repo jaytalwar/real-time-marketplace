@@ -1,145 +1,40 @@
-import Order from "../models/Order.js";
-import Product from "../models/Product.js";
-import { getIO } from "../socket/socket.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import * as orderService from "../services/orderService.js";
 
-// Create Order
-export const createOrder = async (req, res) => {
-    try {
-        const { items } = req.body;
+// @desc Create Order
+// @route POST /api/orders
+// @access Buyer
+export const createOrder = asyncHandler(async (req, res) => {
+    const idempotencyKey = req.get("Idempotency-Key");
+    const { order, replay } = await orderService.createOrder(
+        req.user._id,
+        req.body.items,
+        idempotencyKey
+    );
 
-        if (!items || items.length === 0) {
-            return res.status(400).json({
-                message: "Order must contain at least one item",
-            });
-        }
+    res.status(replay ? 200 : 201).json(order);
+});
 
-        let total = 0;
-        const orderItems = [];
+// @desc Buyer's own orders
+// @route GET /api/orders/my
+// @access Buyer
+export const getMyOrders = asyncHandler(async (req, res) => {
+    const orders = await orderService.getMyOrders(req.user._id);
+    res.json(orders);
+});
 
-        for (const item of items) {
-            const product = await Product.findById(item.product);
-            if (product.stock < item.quantity) {
-    return res.status(400).json({
-        message: `${product.title} is out of stock`
-    });
-}
+// @desc Orders visible to the requester (own products for sellers, all for admin)
+// @route GET /api/orders/all
+// @access Seller/Admin
+export const getAllOrders = asyncHandler(async (req, res) => {
+    const orders = await orderService.getOrdersForRequester(req.user);
+    res.json(orders);
+});
 
-            if (!product) {
-                return res.status(404).json({
-                    message: `Product not found: ${item.product}`,
-                });
-            }
-
-            orderItems.push({
-                product: product._id,
-                quantity: item.quantity,
-            });
-
-            total += product.price * item.quantity;
-            product.stock -= item.quantity;
-
-await product.save();
-        }
-
-        const order = await Order.create({
-            buyer: req.user._id,
-            items: orderItems,
-            total,
-        });
-
-        res.status(201).json(order);
-
-    } catch (error) {
-        res.status(500).json({
-            message: error.message,
-        });
-    }
-};
-
-// Buyer Orders
-export const getMyOrders = async (req, res) => {
-
-    try {
-
-        const orders = await Order.find({
-            buyer: req.user._id,
-        })
-        .populate("items.product")
-        .sort({ createdAt: -1 });
-
-        res.json(orders);
-
-    } catch (error) {
-
-        res.status(500).json({
-            message: error.message,
-        });
-
-    }
-
-};
-
-// Seller/Admin Orders
-export const getAllOrders = async (req, res) => {
-
-    try {
-
-        const orders = await Order.find()
-            .populate("buyer", "name email")
-            .populate("items.product");
-
-        res.json(orders);
-
-    } catch (error) {
-
-        res.status(500).json({
-            message: error.message,
-        });
-
-    }
-
-};
-
-// Update Status
-
-export const updateOrderStatus = async (req, res) => {
-
-    try {
-
-        const order = await Order.findById(req.params.id);
-
-        if (!order) {
-
-            return res.status(404).json({
-                message: "Order not found",
-            });
-
-        }
-
-        order.status = req.body.status;
-
-await order.save();
-
-
-const io = getIO();
-
-io.to(order._id.toString()).emit(
-    "orderStatusUpdated",
-    {
-        orderId: order._id,
-        status: order.status,
-        updatedAt: order.updatedAt
-    }
-);
-
-res.json(order);
-
-    } catch (error) {
-
-        res.status(500).json({
-            message: error.message,
-        });
-
-    }
-
-};
+// @desc Update order status
+// @route PATCH /api/orders/:id/status
+// @access Seller/Admin
+export const updateOrderStatus = asyncHandler(async (req, res) => {
+    const order = await orderService.updateOrderStatus(req.params.id, req.body.status, req.user);
+    res.json(order);
+});

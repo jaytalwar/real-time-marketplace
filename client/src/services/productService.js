@@ -4,7 +4,10 @@ export const getProducts = async (
   page = 1,
   search = "",
   category = "",
-  sort = "-createdAt"
+  sort = "-createdAt",
+  limit = 12,
+  minPrice,
+  maxPrice
 ) => {
   const { data } = await api.get("/products", {
     params: {
@@ -12,6 +15,9 @@ export const getProducts = async (
       search,
       category,
       sort,
+      limit,
+      minPrice,
+      maxPrice,
     },
   });
 
@@ -41,5 +47,17 @@ export const deleteProduct = async (id) => {
 export const getProductById = async (id) => {
   const { data } = await api.get(`/products/${id}`);
 
+  return data;
+};
+
+export const getPricingInsight = async (id) => {
+  const { data } = await api.get(`/products/${id}/pricing-insight`);
+  return data;
+};
+
+export const getRecommendations = async (id, limit = 6) => {
+  const { data } = await api.get(`/products/${id}/recommendations`, {
+    params: { limit },
+  });
   return data;
 };

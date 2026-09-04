@@ -1,85 +1,31 @@
 import { useState } from "react";
-import { createProduct } from "../services/productService";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+import { createProduct } from "../services/productService";
+import ProductForm from "../components/ProductForm";
 
 export default function AddProduct() {
   const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
 
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    category: "",
-    image: "",
-    stock: 0,
-    price: 0,
-  });
-
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-
-    await createProduct(form);
-
-    navigate("/seller");
+  const submit = async (values) => {
+    setSubmitting(true);
+    try {
+      await createProduct(values);
+      toast.success("Product added");
+      navigate("/seller");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not add product");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div style={{ padding: 30 }}>
-      <h1>Add Product</h1>
-
-      <form onSubmit={submit}>
-        <input
-          name="title"
-          placeholder="Title"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <textarea
-          name="description"
-          placeholder="Description"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <input
-          name="category"
-          placeholder="Category"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <input
-          name="image"
-          placeholder="Image URL"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <input
-          type="number"
-          name="price"
-          placeholder="Price"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <input
-          type="number"
-          name="stock"
-          placeholder="Stock"
-          onChange={handleChange}
-        />
-        <br /><br />
-
-        <button>Add Product</button>
-      </form>
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <h1 className="mb-6 text-xl font-bold text-slate-900">Add Product</h1>
+      <ProductForm onSubmit={submit} submitLabel="Add Product" submitting={submitting} />
     </div>
   );
 }
